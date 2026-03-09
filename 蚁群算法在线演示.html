@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>蚁群算法 - 手机版</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{
+    width:100%;
+    height:100%;
+    background:#111;
+    color:#fff;
+    overflow:hidden;
+  }
+  body{
+    display:flex;
+    flex-direction:column;
+  }
+
+  /* 顶部控制栏 - 手机大按钮 */
+  .top-panel {
+    width: 100%;
+    padding: 8px 6px;
+    background: #1a1a1a;
+    display: flex;
+    align-items:center;
+    justify-content:center;
+    gap: 6px;
+    border-bottom: 1px solid #333;
+    flex-wrap: wrap;
+  }
+  .top-panel button {
+    padding: 10px 8px;
+    font-size: 12px;
+    border: none;
+    border-radius: 6px;
+    background: #333;
+    color: #fff;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .top-panel button.primary {
+    background: #009944;
+  }
+  .top-panel button.speed-btn {
+    background: #224888;
+  }
+  .speed-show {
+    font-size: 12px;
+    color: #00ff88;
+    min-width: 40px;
+    text-align: center;
+  }
+
+  /* 编辑栏 */
+  .edit-panel {
+    width: 100%;
+    padding: 6px;
+    background: #1a1a1a;
+    border-bottom: 1px solid #333;
+    display: flex;
+    align-items:center;
+    justify-content:center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .edit-panel button {
+    padding: 8px 6px;
+    font-size: 12px;
+    border: none;
+    border-radius: 6px;
+    background: #333;
+    color: #fff;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .edit-panel button.active {
+    background: #009944;
+  }
+
+  /* 配置面板 */
+  .config-panel {
+    width: 100%;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    background: #1a1a1a;
+  }
+  .config-panel.open {
+    max-height: 540px;
+    border-bottom: 1px solid #333;
+  }
+  .config-row {
+    padding: 8px 10px;
+    display: flex;
+    align-items:center;
+    gap: 6px;
+    border-bottom: 1px solid #2a2a2a;
+  }
+  .config-row:last-child {
+    border-bottom: none;
+  }
+  .config-row .label {
+    font-size: 12px;
+    color: #eee;
+    min-width: 120px;
+  }
+  .config-row input[type="range"] {
+    flex: 1;
+    accent-color: #009944;
+    height: 6px;
+  }
+  .config-row input[type="number"] {
+    width: 50px;
+    background: #333;
+    color: #00ff88;
+    border: none;
+    border-radius: 4px;
+    padding: 4px;
+    text-align: right;
+    font-size: 12px;
+  }
+
+  /* 手机版开关样式 */
+  .switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .switch {
+    position: relative;
+    width: 40px;
+    height: 20px;
+  }
+  .switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .switch-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #444;
+    transition: .2s;
+    border-radius: 20px;
+  }
+  .switch-slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    transition: .2s;
+    border-radius: 50%;
+  }
+  input:checked + .switch-slider {
+    background-color: #009944;
+  }
+  input:checked + .switch-slider:before {
+    transform: translateX(20px);
+  }
+
+  /* 画布容器 - 手机全屏 */
+  #wrap{
+    width:100%;
+    flex: 1;
+    position:relative;
+    overflow:hidden;
+  }
+  #canvas{
+    position:absolute;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    image-rendering:pixelated;
+    background:#000;
+    touch-action: manipulation;
+  }
+</style>
+</head>
+<body>
+
+<div class="top-panel">
+  <button class="speed-btn" id="slowDownBtn">减速</button>
+  <button class="primary" id="runBtn">运行</button>
+  <button class="speed-btn" id="speedUpBtn">加速</button>
+  <span class="speed-show" id="speedShow">1.0x</span>
+  <button id="resetBtn">重置</button>
+  <button id="configBtn">配置</button>
+</div>
+
+<div class="edit-panel">
+  <button id="addNestBtn" class="active">添加巢穴</button>
+  <button id="addFoodBtn">添加食物</button>
+  <button id="addObstacleBtn">添加障碍物</button>
+  <button id="clearAllBtn">清空所有</button>
+  <button id="toggleHomePhero">巢穴素</button>
+  <button id="toggleFoodPhero">食物素</button>
+</div>
+
+<div class="config-panel" id="configPanel">
+  <div class="config-row">
+    <span class="label">每秒/单次生成数量</span>
+    <input type="range" id="spawnRateSlider" min="0" max="100" step="0.1" value="1.4">
+    <input type="number" id="spawnRateInput" step="0.1" value="1.4">
+  </div>
+
+  <!-- 每秒产蚁开关 -->
+  <div class="config-row switch-row">
+    <span class="label">启用每秒产蚁</span>
+    <label class="switch">
+      <input type="checkbox" id="spawnPerSecondSwitch" checked>
+      <span class="switch-slider"></span>
+    </label>
+  </div>
+
+  <div class="config-row">
+    <span class="label">蚂蚁寿命(秒)</span>
+    <input type="range" id="lifetimeSlider" min="0" max="100" step="1" value="60">
+    <input type="number" id="lifetimeInput" step="1" value="60">
+  </div>
+  <div class="config-row">
+    <span class="label">最大转向角度(°)</span>
+    <input type="range" id="maxTurnAngleSlider" min="0" max="90" step="1" value="26">
+    <input type="number" id="maxTurnAngleInput" step="1" value="26">
+  </div>
+  <div class="config-row">
+    <span class="label">蚁巢洞口朝向(°)</span>
+    <input type="range" id="nestExitAngleSlider" min="0" max="360" step="1" value="270">
+    <input type="number" id="nestExitAngleInput" step="1" value="270">
+  </div>
+
+  <!-- 洞口模式开关 -->
+  <div class="config-row switch-row">
+    <span class="label">洞口模式（固定方向）</span>
+    <label class="switch">
+      <input type="checkbox" id="nestExitModeSwitch" checked>
+      <span class="switch-slider"></span>
+    </label>
+  </div>
+
+  <div class="config-row">
+    <span class="label">巢穴信息素寿命(秒)</span>
+    <input type="range" id="homePheromoneDurationSlider" min="0" max="100" step="1" value="100">
+    <input type="number" id="homePheromoneDurationInput" step="1" value="100">
+  </div>
+  <div class="config-row">
+    <span class="label">食物信息素寿命(秒)</span>
+    <input type="range" id="foodPheromoneDurationSlider" min="0" max="100" step="1" value="100">
+    <input type="number" id="foodPheromoneDurationInput" step="1" value="100">
+  </div>
+  <div class="config-row">
+    <span class="label">未找食物停产巢穴素(秒)</span>
+    <input type="range" id="unfoundFoodStopSlider" min="0" max="100" step="1" value="28">
+    <input type="number" id="unfoundFoodStopInput" step="1" value="28">
+  </div>
+  <div class="config-row">
+    <span class="label">带食物未回巢停产食物素(秒)</span>
+    <input type="range" id="unfoundHomeStopSlider" min="0" max="100" step="1" value="31">
+    <input type="number" id="unfoundHomeStopInput" step="1" value="31">
+  </div>
+</div>
+
+<div id="wrap">
+  <canvas id="canvas"></canvas>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('wrap');
+
+const runBtn = document.getElementById('runBtn');
+const resetBtn = document.getElementById('resetBtn');
+const configBtn = document.getElementById('configBtn');
+const configPanel = document.getElementById('configPanel');
+
+const spawnRateSlider = document.getElementById('spawnRateSlider');
+const spawnRateInput = document.getElementById('spawnRateInput');
+const lifetimeSlider = document.getElementById('lifetimeSlider');
+const lifetimeInput = document.getElementById('lifetimeInput');
+const maxTurnAngleSlider = document.getElementById('maxTurnAngleSlider');
+const maxTurnAngleInput = document.getElementById('maxTurnAngleInput');
+const nestExitAngleSlider = document.getElementById('nestExitAngleSlider');
+const nestExitAngleInput = document.getElementById('nestExitAngleInput');
+const homePheromoneDurationSlider = document.getElementById('homePheromoneDurationSlider');
+const homePheromoneDurationInput = document.getElementById('homePheromoneDurationInput');
+const foodPheromoneDurationSlider = document.getElementById('foodPheromoneDurationSlider');
+const foodPheromoneDurationInput = document.getElementById('foodPheromoneDurationInput');
+const unfoundFoodStopSlider = document.getElementById('unfoundFoodStopSlider');
+const unfoundFoodStopInput = document.getElementById('unfoundFoodStopInput');
+const unfoundHomeStopSlider = document.getElementById('unfoundHomeStopSlider');
+const unfoundHomeStopInput = document.getElementById('unfoundHomeStopInput');
+
+// 每秒产蚁开关
+const spawnPerSecondSwitch = document.getElementById('spawnPerSecondSwitch');
+let isSpawnPerSecond = true;
+
+// 洞口模式开关
+const nestExitModeSwitch = document.getElementById('nestExitModeSwitch');
+let isNestExitFixed = true;
+
+const slowDownBtn = document.getElementById('slowDownBtn');
+const speedUpBtn = document.getElementById('speedUpBtn');
+const speedShow = document.getElementById('speedShow');
+const toggleHomePheroBtn = document.getElementById('toggleHomePhero');
+const toggleFoodPheroBtn = document.getElementById('toggleFoodPhero');
+
+let showHomePheromone = false;
+let showFoodPheromone = false;
+
+// 手机屏幕尺寸
+let WIDTH = 0;
+let HEIGHT = 0;
+
+// 多巢穴、多食物、多障碍物
+let nests = [];
+let foods = [];
+let obstacles = [];
+const COLLISION_RADIUS = 10;
+const OBSTACLE_RADIUS = 12;
+const BASE_LOOK_RANGE = 6;
+
+const BASE_SPEED = 1.2;
+const FIXED_STEP = 1;
+
+let SPAWN_RATE_PER_SECOND = 1.4;
+let ANT_LIFETIME_SECONDS = 60;
+let maxTurnAngleDeg = 26;
+let maxTurnAngleRad = 0;
+let nestExitAngleDeg = 270;
+let nestExitAngleRad = 0;
+
+let HOME_PHEROMONE_DURATION = 100;
+let FOOD_PHEROMONE_DURATION = 100;
+let UNFOUND_FOOD_STOP_SECONDS = 28;
+let UNFOUND_HOME_STOP_SECONDS = 31;
+
+let speedMultiplier = 1;
+let running = false;
+let gameTime = 0;
+let lastFrameTime = 0;
+let spawnAccumulator = 0;
+
+let homePheromone = [];
+let foodPheromone = [];
+let ants = [];
+
+// 编辑模式
+let editMode = 'nest';
+const addNestBtn = document.getElementById('addNestBtn');
+const addFoodBtn = document.getElementById('addFoodBtn');
+const addObstacleBtn = document.getElementById('addObstacleBtn');
+const clearAllBtn = document.getElementById('clearAllBtn');
+
+// 线圆碰撞
+function lineCircleCollision(x1, y1, x2, y2, cx, cy, r) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const a = dx*dx + dy*dy;
+  if (a === 0) return false;
+  const b = 2 * (dx*(x1 - cx) + dy*(y1 - cy));
+  const c = (x1 - cx)*(x1 - cx) + (y1 - cy)*(y1 - cy) - r*r;
+  const d = b*b - 4*a*c;
+  if (d < 0) return false;
+  const t1 = (-b - Math.sqrt(d)) / (2*a);
+  const t2 = (-b + Math.sqrt(d)) / (2*a);
+  return (t1 >= 0 && t1 <= 1) || (t2 >= 0 && t2 <= 1);
+}
+
+function getDirections() {
+  const half = maxTurnAngleRad / 2;
+  return [-half*0.8, -half*0.4, 0, half*0.4, half*0.8];
+}
+
+class Ant {
+  constructor(nest) {
+    this.x = nest.x;
+    this.y = nest.y;
+    
+    // 洞口模式逻辑
+    if (isNestExitFixed) {
+      this.angle = nestExitAngleRad + (Math.random() - 0.5) * 0.3;
+    } else {
+      this.angle = Math.random() * Math.PI * 2;
+    }
+    
+    this.birthGameTime = gameTime;
+    this.foodSearchStartTime = gameTime;
+    this.foodTouchTime = 0;
+    this.isDead = false;
+    this.hasFood = false;
+    this.targetFood = null;
+    this.targetNest = nest;
+  }
+
+  update() {
+    const lifeTimeMs = ANT_LIFETIME_SECONDS * 1000;
+    if (gameTime - this.birthGameTime >= lifeTimeMs) {
+      this.isDead = true;
+      return;
+    }
+    if (this.isDead) return;
+
+    const totalMoveDistance = BASE_SPEED * speedMultiplier;
+    const stepCount = Math.max(1, Math.ceil(totalMoveDistance / FIXED_STEP));
+    const stepDistance = totalMoveDistance / stepCount;
+    const baseLookRange = Math.max(BASE_LOOK_RANGE, stepDistance * 2);
+    const lookRange = this.hasFood ? baseLookRange * 1.2 : baseLookRange;
+
+    for (let i = 0; i < stepCount; i++) {
+      this.hasFood ? this.followHomePheromone(lookRange) : this.followFoodPheromone(lookRange);
+      const oldX = this.x, oldY = this.y;
+      this.x += Math.cos(this.angle) * stepDistance;
+      this.y += Math.sin(this.angle) * stepDistance;
+
+      // 障碍物碰撞
+      let hitObs = false;
+      for (const o of obstacles) {
+        if (lineCircleCollision(oldX, oldY, this.x, this.y, o.x, o.y, o.r)) {
+          hitObs = true; break;
+        }
+      }
+      if (hitObs) {
+        this.x = oldX; this.y = oldY;
+        this.angle += Math.PI + (Math.random()-0.5)*0.5;
+        continue;
+      }
+
+      // 吃食物
+      if (!this.hasFood) {
+        for (const f of foods) {
+          if (lineCircleCollision(oldX, oldY, this.x, this.y, f.x, f.y, COLLISION_RADIUS)) {
+            this.hasFood = true; this.angle += Math.PI;
+            this.x = f.x; this.y = f.y;
+            this.foodTouchTime = gameTime; f.count--;
+            break;
+          }
+        }
+      } else {
+        // 回巢
+        for (const n of nests) {
+          if (lineCircleCollision(oldX, oldY, this.x, this.y, n.x, n.y, COLLISION_RADIUS)) {
+            this.hasFood = false;
+            
+            // 回巢后再次出巢也遵循洞口模式
+            if (isNestExitFixed) {
+              this.angle = nestExitAngleRad + (Math.random()-0.5)*0.3;
+            } else {
+              this.angle = Math.random() * Math.PI * 2;
+            }
+            
+            this.x = n.x; this.y = n.y;
+            this.foodSearchStartTime = gameTime; n.count++;
+            break;
+          }
+        }
+      }
+
+      this.dropTrail(oldX, oldY, this.x, this.y);
+
+      // 边界
+      if (this.x < 2) { this.x = 2; this.angle = Math.PI - this.angle; }
+      if (this.x > WIDTH-2) { this.x = WIDTH-2; this.angle = Math.PI - this.angle; }
+      if (this.y < 2) { this.y = 2; this.angle = -this.angle; }
+      if (this.y > HEIGHT-2) { this.y = HEIGHT-2; this.angle = -this.angle; }
+    }
+  }
+
+  followFoodPheromone(lookRange) {
+    const dirs = getDirections();
+    let best = -Infinity, bestDir = 0;
+    for (const dir of dirs) {
+      const ta = this.angle + dir;
+      const tx = Math.round(this.x + Math.cos(ta)*lookRange);
+      const ty = Math.round(this.y + Math.sin(ta)*lookRange);
+      if (tx<0||tx>=WIDTH||ty<0||ty>=HEIGHT) continue;
+      let obs = false;
+      for (const o of obstacles) {
+        if (Math.hypot(tx-o.x, ty-o.y) < o.r+2) { obs=true; break; }
+      }
+      if (obs) continue;
+      const rem = Math.max(0, foodPheromone[tx][ty] - gameTime);
+      const s = rem * 1000 - Math.abs(dir)*50;
+      if (s > best) { best = s; bestDir = dir; }
+    }
+    if (best > 0) this.angle += bestDir;
+    else this.angle += (Math.random()-0.5)*maxTurnAngleRad*0.2;
+  }
+
+  followHomePheromone(lookRange) {
+    const dirs = getDirections();
+    let best = -Infinity, bestDir = 0;
+    for (const dir of dirs) {
+      const ta = this.angle + dir;
+      const tx = Math.round(this.x + Math.cos(ta)*lookRange);
+      const ty = Math.round(this.y + Math.sin(ta)*lookRange);
+      if (tx<0||tx>=WIDTH||ty<0||ty>=HEIGHT) continue;
+      let obs = false;
+      for (const o of obstacles) {
+        if (Math.hypot(tx-o.x, ty-o.y) < o.r+2) { obs=true; break; }
+      }
+      if (obs) continue;
+      let sum = 0;
+      for (let dx=-1;dx<=1;dx++){
+        for(let dy=-1;dy<=1;dy++){
+          const x=tx+dx,y=ty+dy;
+          if(x>=0&&x<WIDTH&&y>=0&&y<HEIGHT)
+            sum += Math.max(0, homePheromone[x][y] - gameTime);
+        }
+      }
+      const s = sum * 1000 - Math.abs(dir)*50;
+      if (s > best) { best = s; bestDir = dir; }
+    }
+    if (best > 0) this.angle += bestDir;
+    else this.angle += (Math.random()-0.5)*maxTurnAngleRad*0.2;
+  }
+
+  dropTrail(ox,oy,nx,ny){
+    const x=Math.round(nx),y=Math.round(ny);
+    if(x<0||x>=WIDTH||y<0||y>=HEIGHT) return;
+    if(this.hasFood){
+      if(FOOD_PHEROMONE_DURATION<=0) return;
+      if(UNFOUND_HOME_STOP_SECONDS>0 && (gameTime-this.foodTouchTime)>=UNFOUND_HOME_STOP_SECONDS*1000) return;
+      foodPheromone[x][y] = gameTime + FOOD_PHEROMONE_DURATION*1000;
+    }else{
+      if(HOME_PHEROMONE_DURATION<=0) return;
+      if(UNFOUND_FOOD_STOP_SECONDS>0 && (gameTime-this.foodSearchStartTime)>=UNFOUND_FOOD_STOP_SECONDS*1000) return;
+      homePheromone[x][y] = gameTime + HOME_PHEROMONE_DURATION*1000;
+    }
+  }
+
+  draw(){
+    if(this.isDead) return;
+    ctx.fillStyle = this.hasFood ? '#ffdd00' : '#00ff44';
+    ctx.fillRect(this.x, this.y, 2, 2);
+  }
+}
+
+function spawnAnts(c){
+  if(c<=0||nests.length===0) return;
+  const n=Math.floor(c);
+  for(let i=0;i<n;i++){
+    const rn = nests[Math.floor(Math.random()*nests.length)];
+    ants.push(new Ant(rn));
+  }
+}
+
+function updateSpeedShow(){
+  let t;
+  if(speedMultiplier<1) t=speedMultiplier.toFixed(2);
+  else if(speedMultiplier<10) t=speedMultiplier.toFixed(1);
+  else t=Math.round(speedMultiplier);
+  speedShow.textContent = t+'x';
+}
+
+// 手机全屏适配
+function fitMobileScreen(){
+  WIDTH = canvas.offsetWidth;
+  HEIGHT = canvas.offsetHeight;
+  canvas.width = WIDTH;
+  canvas.height = HEIGHT;
+  homePheromone = Array.from({length:WIDTH},()=>Array(HEIGHT).fill(0));
+  foodPheromone = Array.from({length:WIDTH},()=>Array(HEIGHT).fill(0));
+  // 默认巢穴食物
+  if(nests.length===0) nests.push({x:WIDTH/2, y:HEIGHT-60, count:0});
+  if(foods.length===0) foods.push({x:WIDTH/2, y:60, count:0});
+}
+
+function formatCount(num,isNest){
+  return isNest ? (num>=0?`+${num}`:num) : (num<=0?num:`-${num}`);
+}
+
+function renderPheromone(){
+  if(showHomePheromone){
+    ctx.fillStyle='#004422';
+    for(let x=0;x<WIDTH;x++)for(let y=0;y<HEIGHT;y++)
+      if(homePheromone[x][y]>gameTime) ctx.fillRect(x,y,1,1);
+  }
+  if(showFoodPheromone){
+    ctx.fillStyle='#002266';
+    for(let x=0;x<WIDTH;x++)for(let y=0;y<HEIGHT;y++)
+      if(foodPheromone[x][y]>gameTime) ctx.fillRect(x,y,1,1);
+  }
+}
+
+function render(){
+  ctx.fillStyle='#000';
+  ctx.fillRect(0,0,WIDTH,HEIGHT);
+  renderPheromone();
+  ants.forEach(a=>a.draw());
+  // 巢穴
+  nests.forEach(n=>{
+    ctx.fillStyle='#ff00ff';
+    ctx.beginPath(); ctx.arc(n.x,n.y,8,0,Math.PI*2); ctx.fill();
+    ctx.font='14px Arial'; ctx.textAlign='center';
+    ctx.fillStyle='#ff00ff'; ctx.fillText(formatCount(n.count,true),n.x,n.y-15);
+  });
+  // 食物
+  foods.forEach(f=>{
+    ctx.fillStyle='#ffaa00';
+    ctx.beginPath(); ctx.arc(f.x,f.y,8,0,Math.PI*2); ctx.fill();
+    ctx.font='14px Arial'; ctx.textAlign='center';
+    ctx.fillStyle='#ffaa00'; ctx.fillText(formatCount(f.count,false),f.x,f.y-15);
+  });
+  // 障碍物
+  obstacles.forEach(o=>{
+    ctx.fillStyle='#888';
+    ctx.beginPath(); ctx.arc(o.x,o.y,o.r,0,Math.PI*2); ctx.fill();
+  });
+}
+
+function loop(ts){
+  if(!running) return;
+  const dt = ts-lastFrameTime;
+  lastFrameTime=ts; gameTime+=dt;
+  const dtSec = dt/1000;
+
+  // 只有开启每秒产蚁才自动生成
+  if(isSpawnPerSecond){
+    spawnAccumulator += SPAWN_RATE_PER_SECOND * dtSec * speedMultiplier;
+    spawnAnts(spawnAccumulator);
+    spawnAccumulator %= 1;
+  }
+
+  ants.forEach(a=>a.update());
+  ants = ants.filter(a=>!a.isDead);
+  render();
+  requestAnimationFrame(loop);
+}
+
+// 编辑
+addNestBtn.onclick=()=>{editMode='nest';addNestBtn.classList.add('active');addFoodBtn.classList.remove('active');addObstacleBtn.classList.remove('active');}
+addFoodBtn.onclick=()=>{editMode='food';addFoodBtn.classList.add('active');addNestBtn.classList.remove('active');addObstacleBtn.classList.remove('active');}
+addObstacleBtn.onclick=()=>{editMode='obstacle';addObstacleBtn.classList.add('active');addNestBtn.classList.remove('active');addFoodBtn.classList.remove('active');}
+clearAllBtn.onclick=()=>{nests=[];foods=[];obstacles=[];ants=[];fitMobileScreen();render();}
+
+// 手机点击：编辑模式加物体，关闭自动产蚁则点击生成蚂蚁
+canvas.onclick=(e)=>{
+  const r=canvas.getBoundingClientRect();
+  const x=e.clientX-r.left;
+  const y=e.clientY-r.top;
+  if(x<0||x>=WIDTH||y<0||y>=HEIGHT) return;
+
+  // 关闭每秒产蚁时，点击直接生成蚂蚁
+  if(!isSpawnPerSecond){
+    spawnAnts(SPAWN_RATE_PER_SECOND);
+    render();
+    return;
+  }
+
+  // 开启每秒产蚁时，保持原来的编辑添加功能
+  if(running) return;
+  if(editMode==='nest') nests.push({x,y,count:0});
+  else if(editMode==='food') foods.push({x,y,count:0});
+  else obstacles.push({x,y,r:OBSTACLE_RADIUS});
+  render();
+}
+
+runBtn.onclick=()=>{
+  running=!running;
+  if(running){
+    runBtn.textContent='暂停'; runBtn.style.background='#c22';
+    lastFrameTime=performance.now(); requestAnimationFrame(loop);
+  }else{
+    runBtn.textContent='运行'; runBtn.style.background='#094';
+  }
+}
+
+resetBtn.onclick=()=>{
+  running=false; runBtn.textContent='运行'; runBtn.style.background='#094';
+  ants=[]; gameTime=0; lastFrameTime=0; spawnAccumulator=0;
+  nests.forEach(n=>n.count=0); foods.forEach(f=>f.count=0);
+  fitMobileScreen(); render();
+}
+
+configBtn.onclick=()=>{configPanel.classList.toggle('open');}
+
+slowDownBtn.onclick=()=>{speedMultiplier=Math.max(0.01,speedMultiplier/2);updateSpeedShow();}
+speedUpBtn.onclick=()=>{speedMultiplier=Math.min(10000,speedMultiplier*2);updateSpeedShow();}
+
+toggleHomePheroBtn.onclick=()=>{showHomePheromone=!showHomePheromone;render();}
+toggleFoodPheroBtn.onclick=()=>{showFoodPheromone=!showFoodPheromone;render();}
+
+// 每秒产蚁开关
+spawnPerSecondSwitch.onchange = () => {
+  isSpawnPerSecond = spawnPerSecondSwitch.checked;
+};
+
+// 洞口模式开关
+nestExitModeSwitch.onchange = () => {
+  isNestExitFixed = nestExitModeSwitch.checked;
+};
+
+// 双向绑定（无范围限制）
+function sync(slider,input,setter,fmt){
+  slider.oninput=(e)=>{const v=+e.target.value;setter(v);input.value=fmt(v);}
+  input.oninput=(e)=>{
+    let v=+e.target.value;
+    const step=+slider.step;
+    if(step>0) v=Math.round(v/step)*step;
+    setter(v);
+    if(v>=+slider.min&&v<=+slider.max) slider.value=v;
+    e.target.value=fmt(v);
+  }
+}
+
+sync(spawnRateSlider,spawnRateInput,v=>SPAWN_RATE_PER_SECOND=v,v=>v.toFixed(1));
+sync(lifetimeSlider,lifetimeInput,v=>ANT_LIFETIME_SECONDS=v,v=>v+'');
+sync(maxTurnAngleSlider,maxTurnAngleInput,v=>{maxTurnAngleDeg=v;maxTurnAngleRad=v*Math.PI/180;},v=>v+'');
+sync(nestExitAngleSlider,nestExitAngleInput,v=>{nestExitAngleDeg=v;nestExitAngleRad=v*Math.PI/180;},v=>v+'');
+sync(homePheromoneDurationSlider,homePheromoneDurationInput,v=>HOME_PHEROMONE_DURATION=v,v=>v+'');
+sync(foodPheromoneDurationSlider,foodPheromoneDurationInput,v=>FOOD_PHEROMONE_DURATION=v,v=>v+'');
+sync(unfoundFoodStopSlider,unfoundFoodStopInput,v=>UNFOUND_FOOD_STOP_SECONDS=v,v=>v+'');
+sync(unfoundHomeStopSlider,unfoundHomeStopInput,v=>UNFOUND_HOME_STOP_SECONDS=v,v=>v+'');
+
+window.onload=()=>{
+  maxTurnAngleRad = maxTurnAngleDeg * Math.PI / 180;
+  nestExitAngleRad = nestExitAngleDeg * Math.PI / 180;
+  fitMobileScreen();
+  updateSpeedShow();
+  render();
+}
+window.onresize=fitMobileScreen;
+</script>
+</body>
+</html>
