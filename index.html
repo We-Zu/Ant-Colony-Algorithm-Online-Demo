@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>蚁群算法 - 手机版</title>
+<title>蚁群算法在线演示</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{
@@ -88,7 +88,7 @@
     background: #1a1a1a;
   }
   .config-panel.open {
-    max-height: 540px;
+    max-height: 600px;
     border-bottom: 1px solid #333;
   }
   .config-row {
@@ -244,6 +244,22 @@
     </label>
   </div>
 
+  <!-- 障碍物反弹角度配置 -->
+  <div class="config-row">
+    <span class="label">障碍物反弹角度(°)</span>
+    <input type="range" id="bounceAngleSlider" min="0" max="180" step="1" value="1">
+    <input type="number" id="bounceAngleInput" step="1" value="1">
+  </div>
+
+  <!-- 随机反弹角度开关 -->
+  <div class="config-row switch-row">
+    <span class="label">启用随机反弹角度</span>
+    <label class="switch">
+      <input type="checkbox" id="randomBounceSwitch">
+      <span class="switch-slider"></span>
+    </label>
+  </div>
+
   <div class="config-row">
     <span class="label">巢穴信息素寿命(秒)</span>
     <input type="range" id="homePheromoneDurationSlider" min="0" max="100" step="1" value="100">
@@ -288,6 +304,10 @@ const maxTurnAngleSlider = document.getElementById('maxTurnAngleSlider');
 const maxTurnAngleInput = document.getElementById('maxTurnAngleInput');
 const nestExitAngleSlider = document.getElementById('nestExitAngleSlider');
 const nestExitAngleInput = document.getElementById('nestExitAngleInput');
+// 障碍物反弹角度元素
+const bounceAngleSlider = document.getElementById('bounceAngleSlider');
+const bounceAngleInput = document.getElementById('bounceAngleInput');
+const randomBounceSwitch = document.getElementById('randomBounceSwitch');
 const homePheromoneDurationSlider = document.getElementById('homePheromoneDurationSlider');
 const homePheromoneDurationInput = document.getElementById('homePheromoneDurationInput');
 const foodPheromoneDurationSlider = document.getElementById('foodPheromoneDurationSlider');
@@ -304,6 +324,11 @@ let isSpawnPerSecond = true;
 // 洞口模式开关
 const nestExitModeSwitch = document.getElementById('nestExitModeSwitch');
 let isNestExitFixed = true;
+
+// 障碍物反弹角度配置
+let OBSTACLE_BOUNCE_ANGLE_DEG = 1;
+let OBSTACLE_BOUNCE_ANGLE_RAD = 0;
+let IS_RANDOM_BOUNCE_ANGLE = false;
 
 const slowDownBtn = document.getElementById('slowDownBtn');
 const speedUpBtn = document.getElementById('speedUpBtn');
@@ -378,6 +403,18 @@ function getDirections() {
   return [-half*0.8, -half*0.4, 0, half*0.4, half*0.8];
 }
 
+// 统一反弹函数：障碍物 & 屏幕边界共用
+function applyBounce(ant) {
+  let bounceRad;
+  if (IS_RANDOM_BOUNCE_ANGLE) {
+    bounceRad = Math.random() * Math.PI;
+  } else {
+    bounceRad = OBSTACLE_BOUNCE_ANGLE_RAD;
+  }
+  const randomOffset = (Math.random() - 0.5) * 0.5;
+  ant.angle += bounceRad + randomOffset;
+}
+
 class Ant {
   constructor(nest) {
     this.x = nest.x;
@@ -427,8 +464,9 @@ class Ant {
         }
       }
       if (hitObs) {
-        this.x = oldX; this.y = oldY;
-        this.angle += Math.PI + (Math.random()-0.5)*0.5;
+        this.x = oldX;
+        this.y = oldY;
+        applyBounce(this);
         continue;
       }
 
@@ -464,11 +502,15 @@ class Ant {
 
       this.dropTrail(oldX, oldY, this.x, this.y);
 
-      // 边界
-      if (this.x < 2) { this.x = 2; this.angle = Math.PI - this.angle; }
-      if (this.x > WIDTH-2) { this.x = WIDTH-2; this.angle = Math.PI - this.angle; }
-      if (this.y < 2) { this.y = 2; this.angle = -this.angle; }
-      if (this.y > HEIGHT-2) { this.y = HEIGHT-2; this.angle = -this.angle; }
+      // 屏幕边界碰撞 —— 现在也用统一反弹
+      let hitEdge = false;
+      if (this.x < 2) { this.x = 2; hitEdge = true; }
+      if (this.x > WIDTH-2) { this.x = WIDTH-2; hitEdge = true; }
+      if (this.y < 2) { this.y = 2; hitEdge = true; }
+      if (this.y > HEIGHT-2) { this.y = HEIGHT-2; hitEdge = true; }
+      if (hitEdge) {
+        applyBounce(this);
+      }
     }
   }
 
@@ -697,6 +739,11 @@ nestExitModeSwitch.onchange = () => {
   isNestExitFixed = nestExitModeSwitch.checked;
 };
 
+// 随机反弹角度开关
+randomBounceSwitch.onchange = () => {
+  IS_RANDOM_BOUNCE_ANGLE = randomBounceSwitch.checked;
+};
+
 // 双向绑定（无范围限制）
 function sync(slider,input,setter,fmt){
   slider.oninput=(e)=>{const v=+e.target.value;setter(v);input.value=fmt(v);}
@@ -714,6 +761,11 @@ sync(spawnRateSlider,spawnRateInput,v=>SPAWN_RATE_PER_SECOND=v,v=>v.toFixed(1));
 sync(lifetimeSlider,lifetimeInput,v=>ANT_LIFETIME_SECONDS=v,v=>v+'');
 sync(maxTurnAngleSlider,maxTurnAngleInput,v=>{maxTurnAngleDeg=v;maxTurnAngleRad=v*Math.PI/180;},v=>v+'');
 sync(nestExitAngleSlider,nestExitAngleInput,v=>{nestExitAngleDeg=v;nestExitAngleRad=v*Math.PI/180;},v=>v+'');
+// 反弹角度双向绑定
+sync(bounceAngleSlider, bounceAngleInput, (v) => {
+  OBSTACLE_BOUNCE_ANGLE_DEG = v;
+  OBSTACLE_BOUNCE_ANGLE_RAD = v * Math.PI / 180;
+}, (v) => v.toString());
 sync(homePheromoneDurationSlider,homePheromoneDurationInput,v=>HOME_PHEROMONE_DURATION=v,v=>v+'');
 sync(foodPheromoneDurationSlider,foodPheromoneDurationInput,v=>FOOD_PHEROMONE_DURATION=v,v=>v+'');
 sync(unfoundFoodStopSlider,unfoundFoodStopInput,v=>UNFOUND_FOOD_STOP_SECONDS=v,v=>v+'');
@@ -722,6 +774,8 @@ sync(unfoundHomeStopSlider,unfoundHomeStopInput,v=>UNFOUND_HOME_STOP_SECONDS=v,v
 window.onload=()=>{
   maxTurnAngleRad = maxTurnAngleDeg * Math.PI / 180;
   nestExitAngleRad = nestExitAngleDeg * Math.PI / 180;
+  // 初始化反弹角度弧度
+  OBSTACLE_BOUNCE_ANGLE_RAD = OBSTACLE_BOUNCE_ANGLE_DEG * Math.PI / 180;
   fitMobileScreen();
   updateSpeedShow();
   render();
