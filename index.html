@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>蚁群算法在线演示</title>
+<title>蚁群算法 - 手机版</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{
@@ -244,11 +244,11 @@
     </label>
   </div>
 
-  <!-- 障碍物反弹角度配置 -->
+  <!-- 障碍物反弹角度配置 - 已改为默认360度 -->
   <div class="config-row">
     <span class="label">障碍物反弹角度(°)</span>
-    <input type="range" id="bounceAngleSlider" min="0" max="180" step="1" value="1">
-    <input type="number" id="bounceAngleInput" step="1" value="1">
+    <input type="range" id="bounceAngleSlider" min="0" max="360" step="1" value="360">
+    <input type="number" id="bounceAngleInput" step="1" value="360">
   </div>
 
   <!-- 随机反弹角度开关 -->
@@ -325,8 +325,8 @@ let isSpawnPerSecond = true;
 const nestExitModeSwitch = document.getElementById('nestExitModeSwitch');
 let isNestExitFixed = true;
 
-// 障碍物反弹角度配置
-let OBSTACLE_BOUNCE_ANGLE_DEG = 1;
+// 障碍物反弹角度配置 - 默认改为360度
+let OBSTACLE_BOUNCE_ANGLE_DEG = 360;
 let OBSTACLE_BOUNCE_ANGLE_RAD = 0;
 let IS_RANDOM_BOUNCE_ANGLE = false;
 
@@ -407,10 +407,13 @@ function getDirections() {
 function applyBounce(ant) {
   let bounceRad;
   if (IS_RANDOM_BOUNCE_ANGLE) {
-    bounceRad = Math.random() * Math.PI;
+    // 随机0-360度反弹
+    bounceRad = Math.random() * Math.PI * 2;
   } else {
+    // 固定设置的反弹角度
     bounceRad = OBSTACLE_BOUNCE_ANGLE_RAD;
   }
+  // 保留小随机扰动，避免蚂蚁卡死
   const randomOffset = (Math.random() - 0.5) * 0.5;
   ant.angle += bounceRad + randomOffset;
 }
@@ -502,7 +505,7 @@ class Ant {
 
       this.dropTrail(oldX, oldY, this.x, this.y);
 
-      // 屏幕边界碰撞 —— 现在也用统一反弹
+      // 屏幕边界碰撞 —— 统一反弹逻辑
       let hitEdge = false;
       if (this.x < 2) { this.x = 2; hitEdge = true; }
       if (this.x > WIDTH-2) { this.x = WIDTH-2; hitEdge = true; }
